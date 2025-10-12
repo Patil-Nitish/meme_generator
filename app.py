@@ -1,45 +1,59 @@
+# app_gemini.py — Final Secure & Gemini-Compatible Version
+# --------------------------------------------------------
+# Streamlit app that uses Google's official Gemini API (google-generativeai)
+# to automatically generate meme captions from uploaded images.
+#
+# Setup:
+#   pip install streamlit pillow google-generativeai
+#
+# Secure API key placement:
+#   Create .streamlit/secrets.toml and add:
+#       GEMINI_API_KEY = "your_actual_gemini_api_key"
+#
+# Run locally:
+#   streamlit run app_gemini.py
+#
+# Deploy:
+#   Streamlit Cloud → paste same secret in "Settings > Secrets"
+
 import os
 import io
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-from google import genai
-from google.genai import types
+import google.generativeai as genai
 
-# Load Gemini API key securely from Streamlit Secrets
+# ---------------- Security & Initialization ----------------
+# Load Gemini API key securely from Streamlit secrets
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("❌ Missing Gemini API key in .streamlit/secrets.toml or Streamlit Cloud settings.")
+    st.error("❌ Missing Gemini API key in .streamlit/secrets.toml or Streamlit Cloud secrets.")
     st.stop()
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
-# Initialize Gemini client
-try:
-    client = genai.Client(api_key=GEMINI_API_KEY)
-except Exception as e:
-    st.error(f"Failed to initialize Gemini client: {e}")
-    st.stop()
+# Configure Gemini client
+genai.configure(api_key=GEMINI_API_KEY)
 
+# ---------------- Streamlit UI Setup ----------------
 st.set_page_config(page_title="Gemini Meme Creator", layout="centered")
-st.title("🪄 Gemini-powered Meme Creator — Gemini Only (Fixed)")
+st.title("🪄 Gemini-powered Meme Creator — Secure Final Version")
 
-st.markdown(
-    """
+st.markdown("""
 Upload an image, and Gemini will describe it in one short caption suitable for a meme.  
-This version has no fallback, always uses Gemini, and prevents text from going out of bounds.
-"""
-)
+This version securely uses your API key, ensures text never goes out of bounds,  
+and is fully deployable on Streamlit Cloud.
+""")
 
-# ---------------- Options ----------------
+# ---------------- Sidebar Settings ----------------
 model_choice = st.sidebar.selectbox(
     "Model",
-    options=["gemini-2.5-flash", "gemini-2.0", "gemini-1.5-pro", "gemini-1.5-mini"],
+    options=["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro"],
     index=0,
 )
 cover_old_text = st.sidebar.checkbox("Cover old text (semi-opaque background)", value=True)
 
-# ---------------- Meme Drawing Utilities ----------------
+# ---------------- Font Setup ----------------
 FONT_PATHS = [
-    "Impact.ttf",
+    "Impact.ttf",  # optional custom font
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
 ]
@@ -52,6 +66,7 @@ def load_font(preferred_paths, size):
             continue
     return ImageFont.load_default()
 
+# ---------------- Text Utilities ----------------
 def _text_size(draw, text, font):
     try:
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -63,10 +78,9 @@ def wrap_text_to_width(draw, text, font, max_width):
     words = text.split()
     if not words:
         return []
-    lines = []
-    current = words[0]
+    lines, current = [], words[0]
     for w in words[1:]:
-        test = current + " " + w
+        test = f"{current} {w}"
         tw, _ = _text_size(draw, test, font)
         if tw <= max_width:
             current = test
@@ -87,13 +101,14 @@ def fit_font_and_wrap(draw, text, preferred_paths, max_width, max_height_fractio
             return font, lines
     return load_font(preferred_paths, 12), [text]
 
+# ---------------- Drawing Function ----------------
 def draw_text_on_image_fixed(image, top_text, bottom_text, cover_old=True):
     base = image.convert("RGBA")
     W, H = base.size
     draw = ImageDraw.Draw(base)
 
     margin = int(W * 0.04)
-    max_width = W - 2*margin
+    max_width = W - 2 * margin
 
     top_font, top_lines = fit_font_and_wrap(draw, top_text.upper(), FONT_PATHS, max_width, 0.28, H)
     bottom_font, bottom_lines = fit_font_and_wrap(draw, bottom_text.upper(), FONT_PATHS, max_width, 0.28, H)
@@ -115,7 +130,8 @@ def draw_text_on_image_fixed(image, top_text, bottom_text, cover_old=True):
             stroke = max(1, int(font.size * 0.06))
             for ox in range(-stroke, stroke+1):
                 for oy in range(-stroke, stroke+1):
-                    if ox == 0 and oy == 0: continue
+                    if ox == 0 and oy == 0:
+                        continue
                     draw.text((x+ox, y_text+oy), ln, font=font, fill="black")
             draw.text((x, y_text), ln, font=font, fill="white")
             y_text += h + int(font.size*0.05)
@@ -141,9 +157,10 @@ if st.button("✨ Generate Meme with Gemini"):
 
         with st.spinner("Generating caption with Gemini..."):
             mime = uploaded.type if hasattr(uploaded, "type") else "image/jpeg"
-            image_part = types.Part.from_bytes(data=raw, mime_type=mime)
+            image_part = {"mime_type": mime, "data": raw}
             prompt = "Describe this image in one short, funny meme-style caption."
-            resp = client.models.generate_content(model=model_choice, contents=[prompt, image_part])
+            model = genai.GenerativeModel(model_choice)
+            resp = model.generate_content([prompt, image_part])
             caption = resp.text.strip() if hasattr(resp, "text") else str(resp)
 
         meme = draw_text_on_image_fixed(pil, caption, user_bottom, cover_old=cover_old_text)
