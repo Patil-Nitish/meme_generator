@@ -142,4 +142,4 @@ For questions, suggestions, or issues, please open an issue on GitHub or contact
 
 ---
 
-**Made with ❤️ and AI** | Powered by Google Gemini
+**Powered by Google Gemini** 
