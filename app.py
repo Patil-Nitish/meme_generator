@@ -1,20 +1,3 @@
-# app_gemini.py — Final Secure & Gemini-Compatible Version
-# --------------------------------------------------------
-# Streamlit app that uses Google's official Gemini API (google-generativeai)
-# to automatically generate meme captions from uploaded images.
-#
-# Setup:
-#   pip install streamlit pillow google-generativeai
-#
-# Secure API key placement:
-#   Create .streamlit/secrets.toml and add:
-#       GEMINI_API_KEY = "your_actual_gemini_api_key"
-#
-# Run locally:
-#   streamlit run app_gemini.py
-#
-# Deploy:
-#   Streamlit Cloud → paste same secret in "Settings > Secrets"
 
 import os
 import io
